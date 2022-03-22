@@ -95,17 +95,13 @@ int main(int argc,char** argv){
 		return -4;
 	}
 
-	length--;
 	fseek(file,0,SEEK_SET);
 	char* data = (char*)malloc(length);
 	char* array = (char*)malloc(length);
 	char c;
 	int i = 0;
-	while((c = fgetc(file)) != EOF){
-		data[i] = c;
-		i++;
-	}
 
+	fread(data,length,1,file);
 	fclose(file);
 	RandParameters randParam = {length,array,param.x,param.a,param.c,param.m};
 	pthread_t randThread;
@@ -123,21 +119,23 @@ int main(int argc,char** argv){
 	pthread_barrier_t barrier;
 	pthread_barrier_init(&barrier,NULL,numOfCores+1);
 
-
+	const int blockLen = (int)ceil((float)length/(float)numOfCores);
 	for(int i = 0;i < numOfCores;i++){
 		context[i].barrier = &barrier;
 		context[i].data = data;
 		context[i].randNums = array;
-		context[i].start = i*(int)ceil((float)length/(float)numOfCores);
-		context[i].end = (i+1)*(int)ceil((float)length/(float)numOfCores) > length ? length : (i+1)*(int)ceil((float)length/(float)numOfCores);
+		context[i].start = i * blockLen;
+		context[i].end = context[i].start + blockLen;
+		if(context[i].end >= length) {
+			context[i].end = length;
+		}
 		pthread_create(&worker[i],NULL,oneTimePad,(void*)&context[i]);
 	}
 
 	pthread_barrier_wait(&barrier);
 	pthread_barrier_destroy(&barrier);
-
 	file = fopen(param.output,"wb");
-	for(int i = 0;i < length+1;i++){
+	for(int i = 0;i < length;i++){
 		fputc(data[i],file);
 	}
 	fclose(file);
